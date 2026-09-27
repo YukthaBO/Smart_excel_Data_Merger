@@ -1,0 +1,1161 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>Smart Excel Data Merger</title>
+
+    <link
+        rel="stylesheet"
+        href="/static/style.css"
+    >
+
+</head>
+
+
+<body>
+
+<div class="container">
+
+    <h1>
+        Smart Excel Data Merger
+    </h1>
+
+    <p class="subtitle">
+        Upload two Excel files and merge matching data easily.
+    </p>
+
+
+    <!-- ========================================= -->
+    <!-- FILE UPLOAD -->
+    <!-- ========================================= -->
+
+    <div class="upload-box">
+
+        <h2>
+            Upload File 1
+        </h2>
+
+        <input
+            type="file"
+            id="file1"
+            accept=".xlsx,.xls"
+        >
+
+    </div>
+
+
+    <div class="upload-box">
+
+        <h2>
+            Upload File 2
+        </h2>
+
+        <input
+            type="file"
+            id="file2"
+            accept=".xlsx,.xls"
+        >
+
+    </div>
+
+
+    <!-- ANALYZE BUTTON -->
+
+    <button
+        id="analyzeBtn"
+        type="button"
+    >
+        Analyze Files
+    </button>
+
+
+    <!-- MESSAGE -->
+
+    <div id="message"></div>
+
+
+    <!-- ========================================= -->
+    <!-- ANALYSIS RESULT -->
+    <!-- ========================================= -->
+
+    <div id="analysisResult"></div>
+
+
+    <!-- ========================================= -->
+    <!-- MATCHING SECTION -->
+    <!-- ========================================= -->
+
+    <div
+        id="matchingSection"
+        style="display: none;"
+    >
+
+        <h2>
+            Select Matching Columns
+        </h2>
+
+        <p>
+            Choose the columns that should match between
+            File 1 and File 2.
+        </p>
+
+
+        <!-- MATCHING ROWS -->
+
+        <div id="matchingRows"></div>
+
+
+        <!-- ADD MATCH -->
+
+        <button
+            id="addMatchBtn"
+            type="button"
+        >
+            + Add Another Matching Column
+        </button>
+
+
+        <!-- CONTINUE -->
+
+        <button
+            id="continueBtn"
+            type="button"
+        >
+            Continue
+        </button>
+
+    </div>
+
+
+    <!-- ========================================= -->
+    <!-- PREVIEW RESULT -->
+    <!-- ========================================= -->
+
+    <div id="previewResult"></div>
+
+
+    <!-- DOWNLOAD BUTTON -->
+
+    <button
+        id="downloadBtn"
+        type="button"
+        style="display: none;"
+    >
+        Merge & Download Excel
+    </button>
+
+
+</div>
+
+
+<script>
+
+
+// ==================================================
+// GLOBAL VARIABLES
+// ==================================================
+
+let file1Columns = [];
+let file2Columns = [];
+
+let selectedMatches = [];
+
+
+// ==================================================
+// ELEMENTS
+// ==================================================
+
+const file1Input =
+    document.getElementById("file1");
+
+const file2Input =
+    document.getElementById("file2");
+
+const analyzeBtn =
+    document.getElementById("analyzeBtn");
+
+const message =
+    document.getElementById("message");
+
+const analysisResult =
+    document.getElementById("analysisResult");
+
+const matchingSection =
+    document.getElementById("matchingSection");
+
+const matchingRows =
+    document.getElementById("matchingRows");
+
+const addMatchBtn =
+    document.getElementById("addMatchBtn");
+
+const continueBtn =
+    document.getElementById("continueBtn");
+
+const previewResult =
+    document.getElementById("previewResult");
+
+const downloadBtn =
+    document.getElementById("downloadBtn");
+
+
+// ==================================================
+// ANALYZE FILES
+// ==================================================
+
+analyzeBtn.addEventListener(
+    "click",
+    async function () {
+
+        const file1 =
+            file1Input.files[0];
+
+        const file2 =
+            file2Input.files[0];
+
+
+        // Check files
+
+        if (!file1 || !file2) {
+
+            message.textContent =
+                "Please select both Excel files.";
+
+            message.style.color = "red";
+
+            return;
+        }
+
+
+        // Create FormData
+
+        const formData =
+            new FormData();
+
+        formData.append(
+            "file1",
+            file1
+        );
+
+        formData.append(
+            "file2",
+            file2
+        );
+
+
+        message.textContent =
+            "Analyzing files...";
+
+        message.style.color =
+            "#333";
+
+
+        try {
+
+            const response =
+                await fetch(
+                    "/analyze",
+                    {
+                        method: "POST",
+                        body: formData
+                    }
+                );
+
+
+            if (!response.ok) {
+
+                throw new Error(
+                    "Analysis failed."
+                );
+            }
+
+
+            const data =
+                await response.json();
+
+
+            // Save columns
+
+            file1Columns =
+                data.file1_columns;
+
+            file2Columns =
+                data.file2_columns;
+
+
+            // Success message
+
+            message.textContent =
+                "Files analyzed successfully!";
+
+            message.style.color =
+                "green";
+
+
+            // Show analysis
+
+            showAnalysis(data);
+
+
+            // Show matching section
+
+            matchingSection.style.display =
+                "block";
+
+
+            // Clear old matching rows
+
+            matchingRows.innerHTML =
+                "";
+
+
+            // Add first matching row
+
+            addMatchingRow(true);
+
+
+            // Clear previous preview
+
+            previewResult.innerHTML =
+                "";
+
+            downloadBtn.style.display =
+                "none";
+
+
+        }
+        catch (error) {
+
+            console.error(error);
+
+            message.textContent =
+                "Something went wrong while analyzing the files.";
+
+            message.style.color =
+                "red";
+
+        }
+
+    }
+);
+
+
+// ==================================================
+// SHOW ANALYSIS
+// ==================================================
+
+function showAnalysis(data) {
+
+    let file1ColumnsHTML =
+        "";
+
+    data.file1_columns.forEach(
+        function (column) {
+
+            file1ColumnsHTML +=
+                `<li>${column}</li>`;
+
+        }
+    );
+
+
+    let file2ColumnsHTML =
+        "";
+
+    data.file2_columns.forEach(
+        function (column) {
+
+            file2ColumnsHTML +=
+                `<li>${column}</li>`;
+
+        }
+    );
+
+
+    analysisResult.innerHTML = `
+
+        <div class="analysis-card">
+
+            <h2>
+                File Analysis
+            </h2>
+
+
+            <div class="file-result">
+
+                <h3>
+                    File 1
+                </h3>
+
+                <p>
+                    <strong>Filename:</strong>
+                    ${data.file1}
+                </p>
+
+                <p>
+                    <strong>Rows:</strong>
+                    ${data.file1_rows}
+                </p>
+
+                <p>
+                    <strong>Columns:</strong>
+                </p>
+
+                <ul>
+                    ${file1ColumnsHTML}
+                </ul>
+
+            </div>
+
+
+            <hr>
+
+
+            <div class="file-result">
+
+                <h3>
+                    File 2
+                </h3>
+
+                <p>
+                    <strong>Filename:</strong>
+                    ${data.file2}
+                </p>
+
+                <p>
+                    <strong>Rows:</strong>
+                    ${data.file2_rows}
+                </p>
+
+                <p>
+                    <strong>Columns:</strong>
+                </p>
+
+                <ul>
+                    ${file2ColumnsHTML}
+                </ul>
+
+            </div>
+
+        </div>
+
+    `;
+}
+
+
+// ==================================================
+// ADD MATCHING ROW
+// ==================================================
+
+function addMatchingRow(
+    autoSelect = false
+) {
+
+    const row =
+        document.createElement("div");
+
+    row.className =
+        "matching-row";
+
+
+    // File 1 select
+
+    const file1Group =
+        document.createElement("div");
+
+    file1Group.className =
+        "column-group";
+
+
+    const file1Label =
+        document.createElement("label");
+
+    file1Label.textContent =
+        "File 1 Column";
+
+
+    const file1Select =
+        document.createElement("select");
+
+
+    file1Select.className =
+        "file1-select";
+
+
+    const file1Default =
+        document.createElement("option");
+
+    file1Default.value =
+        "";
+
+    file1Default.textContent =
+        "Select column";
+
+
+    file1Select.appendChild(
+        file1Default
+    );
+
+
+    file1Columns.forEach(
+        function (column) {
+
+            const option =
+                document.createElement("option");
+
+            option.value =
+                column;
+
+            option.textContent =
+                column;
+
+            file1Select.appendChild(
+                option
+            );
+
+        }
+    );
+
+
+    file1Group.appendChild(
+        file1Label
+    );
+
+    file1Group.appendChild(
+        file1Select
+    );
+
+
+    // Arrow
+
+    const arrow =
+        document.createElement("div");
+
+    arrow.className =
+        "match-arrow";
+
+    arrow.textContent =
+        "↔";
+
+
+    // File 2 select
+
+    const file2Group =
+        document.createElement("div");
+
+    file2Group.className =
+        "column-group";
+
+
+    const file2Label =
+        document.createElement("label");
+
+    file2Label.textContent =
+        "File 2 Column";
+
+
+    const file2Select =
+        document.createElement("select");
+
+
+    file2Select.className =
+        "file2-select";
+
+
+    const file2Default =
+        document.createElement("option");
+
+    file2Default.value =
+        "";
+
+    file2Default.textContent =
+        "Select column";
+
+
+    file2Select.appendChild(
+        file2Default
+    );
+
+
+    file2Columns.forEach(
+        function (column) {
+
+            const option =
+                document.createElement("option");
+
+            option.value =
+                column;
+
+            option.textContent =
+                column;
+
+            file2Select.appendChild(
+                option
+            );
+
+        }
+    );
+
+
+    file2Group.appendChild(
+        file2Label
+    );
+
+    file2Group.appendChild(
+        file2Select
+    );
+
+
+    // Remove button
+
+    const removeBtn =
+        document.createElement("button");
+
+    removeBtn.type =
+        "button";
+
+    removeBtn.className =
+        "remove-match";
+
+    removeBtn.textContent =
+        "Remove";
+
+
+    removeBtn.addEventListener(
+        "click",
+        function () {
+
+            row.remove();
+
+        }
+    );
+
+
+    // Add everything
+
+    row.appendChild(
+        file1Group
+    );
+
+    row.appendChild(
+        arrow
+    );
+
+    row.appendChild(
+        file2Group
+    );
+
+    row.appendChild(
+        removeBtn
+    );
+
+
+    matchingRows.appendChild(
+        row
+    );
+
+
+    // Automatically select first common column
+    // only for first row
+
+    if (autoSelect) {
+
+        const commonColumn =
+            file1Columns.find(
+                function (column) {
+
+                    return file2Columns.includes(
+                        column
+                    );
+
+                }
+            );
+
+
+        if (commonColumn) {
+
+            file1Select.value =
+                commonColumn;
+
+            file2Select.value =
+                commonColumn;
+
+        }
+
+    }
+
+}
+
+
+// ==================================================
+// ADD ANOTHER MATCHING COLUMN
+// ==================================================
+
+addMatchBtn.addEventListener(
+    "click",
+    function () {
+
+        addMatchingRow(false);
+
+    }
+);
+
+
+// ==================================================
+// CONTINUE / MERGE
+// ==================================================
+
+continueBtn.addEventListener(
+    "click",
+    async function () {
+
+        const rows =
+            document.querySelectorAll(
+                ".matching-row"
+            );
+
+
+        const matches =
+            [];
+
+
+        // Read selected matching columns
+
+        for (const row of rows) {
+
+            const file1Select =
+                row.querySelector(
+                    ".file1-select"
+                );
+
+            const file2Select =
+                row.querySelector(
+                    ".file2-select"
+                );
+
+
+            const file1Column =
+                file1Select.value;
+
+            const file2Column =
+                file2Select.value;
+
+
+            // Ignore completely empty row
+
+            if (
+                file1Column === "" &&
+                file2Column === ""
+            ) {
+
+                continue;
+
+            }
+
+
+            // Check incomplete row
+
+            if (
+                file1Column === "" ||
+                file2Column === ""
+            ) {
+
+                alert(
+                    "Please select both columns in every matching row."
+                );
+
+                return;
+
+            }
+
+
+            // Check duplicate pair
+
+            const alreadyExists =
+                matches.some(
+                    function (match) {
+
+                        return (
+                            match.file1_column ===
+                                file1Column &&
+                            match.file2_column ===
+                                file2Column
+                        );
+
+                    }
+                );
+
+
+            if (alreadyExists) {
+
+                alert(
+                    "The same matching column pair cannot be selected twice."
+                );
+
+                return;
+
+            }
+
+
+            matches.push({
+
+                file1_column:
+                    file1Column,
+
+                file2_column:
+                    file2Column
+
+            });
+
+        }
+
+
+        // Need at least one match
+
+        if (matches.length === 0) {
+
+            alert(
+                "Please select at least one matching column."
+            );
+
+            return;
+
+        }
+
+
+        // Save matches globally
+
+        selectedMatches =
+            matches;
+
+
+        message.textContent =
+            "Merging files...";
+
+        message.style.color =
+            "#333";
+
+
+        // FormData
+
+        const formData =
+            new FormData();
+
+
+        formData.append(
+            "matches",
+            JSON.stringify(matches)
+        );
+
+
+        try {
+
+            const response =
+                await fetch(
+                    "/merge",
+                    {
+                        method: "POST",
+                        body: formData
+                    }
+                );
+
+
+            if (!response.ok) {
+
+                throw new Error(
+                    "Merge failed."
+                );
+
+            }
+
+
+            const data =
+                await response.json();
+
+
+            message.textContent =
+                "Matching completed successfully!";
+
+            message.style.color =
+                "green";
+
+
+            // Show preview
+
+            showMergePreview(data);
+
+
+            // Show download button
+
+            downloadBtn.style.display =
+                "block";
+
+
+        }
+        catch (error) {
+
+            console.error(error);
+
+            message.textContent =
+                "Something went wrong while merging.";
+
+            message.style.color =
+                "red";
+
+        }
+
+    }
+);
+
+
+// ==================================================
+// SHOW MERGE PREVIEW
+// ==================================================
+
+function showMergePreview(data) {
+
+    let headerHTML =
+        "";
+
+    data.columns.forEach(
+        function (column) {
+
+            headerHTML +=
+                `<th>${column}</th>`;
+
+        }
+    );
+
+
+    let rowsHTML =
+        "";
+
+
+    data.preview.forEach(
+        function (row) {
+
+            rowsHTML +=
+                "<tr>";
+
+
+            data.columns.forEach(
+                function (column) {
+
+                    let value =
+                        row[column];
+
+
+                    if (
+                        value === null ||
+                        value === undefined
+                    ) {
+
+                        value =
+                            "";
+
+                    }
+
+
+                    rowsHTML +=
+                        `<td>${value}</td>`;
+
+                }
+            );
+
+
+            rowsHTML +=
+                "</tr>";
+
+        }
+    );
+
+
+    // IMPORTANT:
+    // Use innerHTML instead of +=
+    // so preview is never duplicated.
+
+    previewResult.innerHTML = `
+
+        <div class="merge-preview">
+
+            <h2>
+                Merge Preview
+            </h2>
+
+            <p>
+                Total merged rows:
+                <strong>
+                    ${data.rows}
+                </strong>
+            </p>
+
+
+            <div class="table-container">
+
+                <table>
+
+                    <thead>
+
+                        <tr>
+                            ${headerHTML}
+                        </tr>
+
+                    </thead>
+
+
+                    <tbody>
+                        ${rowsHTML}
+                    </tbody>
+
+                </table>
+
+            </div>
+
+        </div>
+
+    `;
+}
+
+
+// ==================================================
+// DOWNLOAD EXCEL
+// ==================================================
+
+downloadBtn.addEventListener(
+    "click",
+    async function () {
+
+        if (
+            selectedMatches.length === 0
+        ) {
+
+            alert(
+                "Please select matching columns first."
+            );
+
+            return;
+
+        }
+
+
+        message.textContent =
+            "Preparing Excel download...";
+
+        message.style.color =
+            "#333";
+
+
+        const formData =
+            new FormData();
+
+
+        formData.append(
+            "matches",
+            JSON.stringify(
+                selectedMatches
+            )
+        );
+
+
+        try {
+
+            const response =
+                await fetch(
+                    "/download",
+                    {
+                        method: "POST",
+                        body: formData
+                    }
+                );
+
+
+            if (!response.ok) {
+
+                throw new Error(
+                    "Download failed."
+                );
+
+            }
+
+
+            // Convert response to Blob
+
+            const blob =
+                await response.blob();
+
+
+            // Create temporary URL
+
+            const url =
+                window.URL.createObjectURL(
+                    blob
+                );
+
+
+            // Create download link
+
+            const link =
+                document.createElement("a");
+
+
+            link.href =
+                url;
+
+            link.download =
+                "merged_excel_data.xlsx";
+
+
+            document.body.appendChild(
+                link
+            );
+
+
+            link.click();
+
+
+            link.remove();
+
+
+            // Release memory
+
+            window.URL.revokeObjectURL(
+                url
+            );
+
+
+            message.textContent =
+                "Excel file downloaded successfully!";
+
+            message.style.color =
+                "green";
+
+        }
+        catch (error) {
+
+            console.error(error);
+
+            message.textContent =
+                "Excel download failed.";
+
+            message.style.color =
+                "red";
+
+        }
+
+    }
+);
+
+
+</script>
+
+</body>
+
+</html>
